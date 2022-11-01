@@ -67,24 +67,55 @@ summary(moped)
 # exploratory analysis
 #####
 
+# One density plot
+moped |> 
+  ggplot(aes(
+    comfort, fill = "#440154FF"
+  )) + 
+  geom_density() + 
+  labs(
+    title = "Density plot of comfort ratings in moped reviews",
+    x = "Comfort",
+    y = "Density"
+  ) + 
+  theme_minimal() + 
+  scale_fill_viridis_d() +
+  theme(legend.position = "none")
+  
+# One Other?
+
 # bar graph of counts by model name
-  moped |>
+moped |>
   ggplot(aes(
     fct_infreq(model), fill = after_stat(count)
   )) + 
   geom_bar() + 
   coord_flip() + 
   labs(
-    title = "Number of reviews of moped models",
-    x = "Moped model", 
+    title = "Number of reviews for each moped model",
+    x = "Model", 
     y = "Count"
   ) + 
+  # including line showing the minimum count for inclusion as a group in splitting
   geom_hline(yintercept = 713 * .10, color = "#440154FF") + 
   theme_bw() + 
   scale_fill_viridis_c() + 
   theme(legend.position = "none") 
 
-# density plot of all numerical variables, sorted by ownership
+# counts by brand
+moped |> 
+  separate(model, into = c("make", "model"), sep = "\\s", extra = "merge") |>
+  ggplot(aes(
+    fct_infreq(make), fill = after_stat(count)
+  )) + 
+  geom_bar() + 
+  coord_flip() + 
+  geom_hline(yintercept = 713 * .10, color = "#440154FF") + 
+  theme_bw() + 
+  scale_fill_viridis_c() + 
+  theme(legend.position = "none") 
+  
+# density bars of all numerical variables, sorted by ownership
   # pivot longer
   moped %>%
     pivot_longer(visual_appeal:comfort) %>%
@@ -226,7 +257,9 @@ moped %>%
 
 # predictive analysis
 #####
-  
+
+# dummyvars?  
+
 # test/train split
 split <-   
   initial_split(moped, prop = 0.75)
@@ -236,3 +269,22 @@ moped_train <-
 
 moped_test <- 
   testing(split)
+
+# log reg
+  
+  # model definition
+
+  # train model
+
+  # test model
+
+# xgboost
+
+  # model definition
+
+  # train model
+
+  # test model
+
+# model testing
+#####
