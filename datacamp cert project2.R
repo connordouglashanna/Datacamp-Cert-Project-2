@@ -119,7 +119,26 @@ moped |>
   theme(legend.position = "none") 
 
 ## bar graph of observations in makes vs models meeting the requirements
+  # generating the desired summary stats
+  model_n_1 <- 
+    moped |>
+      group_by(model) |>
+      mutate(n = n()) |>
+      filter(n > 71.3) |>
+      count()
+
+  model_n_2 <- 
+    moped |> 
+      separate(model, into = c("make", "model"), sep = "\\s", extra = "merge") |>
+      group_by(make) |>
+      mutate(n = n()) |>
+      filter(n > 71.3) |>
+      count() |>
+      mutate(build ID column)
   
+  # merging to a single dataframe
+  model_n_table <- 
+    merge(model_n_1, model_n_2)
 # density bars of all numerical variables, sorted by ownership
   # pivot longer
   moped %>%
