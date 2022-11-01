@@ -81,8 +81,6 @@ moped |>
   theme_minimal() + 
   scale_fill_viridis_d() +
   theme(legend.position = "none")
-  
-# One Other?
 
 # bar graph of counts by model name
 moped |>
@@ -92,7 +90,7 @@ moped |>
   geom_bar() + 
   coord_flip() + 
   labs(
-    title = "Number of reviews for each moped model",
+    title = "Total number of reviews for each moped model",
     x = "Model", 
     y = "Count"
   ) + 
@@ -110,10 +108,17 @@ moped |>
   )) + 
   geom_bar() + 
   coord_flip() + 
+  labs(
+    title = "Total number of reviews for each moped manufacturer",
+    x = "Make", 
+    y = "Count"
+  ) + 
   geom_hline(yintercept = 713 * .10, color = "#440154FF") + 
   theme_bw() + 
   scale_fill_viridis_c() + 
   theme(legend.position = "none") 
+
+## bar graph of observations in makes vs models meeting the requirements
   
 # density bars of all numerical variables, sorted by ownership
   # pivot longer
@@ -161,6 +166,8 @@ moped %>%
   group_by(model) %>%
   summarize(prop_owned = mean(owned), n = n()) %>%
   arrange(prop_owned)
+
+## potentially incorporate ttest to determine if makes and not models are the population?
 
 # pie plot to investigate ownership rate by model
   # generating a list of desired models
@@ -257,7 +264,7 @@ moped %>%
 
 # predictive analysis
 #####
-
+# problem type is binary classification
 # dummyvars?  
 
 # test/train split
@@ -285,6 +292,8 @@ moped_test <-
   # train model
 
   # test model
+
+# possibly KNN?
 
 # model testing
 #####
