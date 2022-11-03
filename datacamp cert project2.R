@@ -13,6 +13,7 @@ library(xgboost)
 library(rsample)
 library(forcats)
 library(ggforce)
+library(vtreat)
 
 # Importing data from csv
 moped <- read_csv("School/datacamp/Datacamp-Cert-Project-2/moped.csv")
@@ -317,11 +318,15 @@ set.seed(100)
   # has issues with replicability across train and test dataframes
   
   #dummyVars
+  # applies to training data
   
   #vtreat
   
   #designTreatmentsZ()
   #prepare()
+
+  
+  #https://win-vector.com/2017/04/15/encoding-categorical-variables-one-hot-and-beyond/
   
 # test/train split
 split <-   
