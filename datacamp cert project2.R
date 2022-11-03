@@ -12,6 +12,7 @@ library(ggrepel)
 library(xgboost)
 library(rsample)
 library(forcats)
+library(ggforce)
 
 # Importing data from csv
 moped <- read_csv("School/datacamp/Datacamp-Cert-Project-2/moped.csv")
@@ -118,14 +119,15 @@ moped |>
   scale_fill_viridis_c() + 
   theme(legend.position = "none") 
 
-## bar graph of observations in makes vs models meeting the requirements
+# bar graph of observations in makes vs models meeting the requirements
   # generating the desired summary stats
   model_n_1 <- 
     moped |>
       group_by(model) |>
       mutate(n = n()) |>
       filter(n > 71.3) |>
-      count()
+      count() |>
+      mutate(make = NA)
 
   model_n_2 <- 
     moped |> 
@@ -134,11 +136,30 @@ moped |>
       mutate(n = n()) |>
       filter(n > 71.3) |>
       count() |>
-      mutate(build ID column)
+      mutate(model = NA)
   
-  # merging to a single dataframe
-  model_n_table <- 
-    merge(model_n_1, model_n_2)
+  # forming final matrix of information
+  model_n <- 
+    rbind(model_n_1, model_n_2) |>
+    mutate(type = ifelse(is.na(model) == TRUE, 1, 0),
+           model = ifelse(type == 1, make, model)) |>
+    select(-make) 
+  # generating the bar graph 
+  model_n |>
+  ggplot(aes(
+    as.factor(type), n, fill = model
+  )) + 
+    geom_col() + 
+    labs(
+      x = "Grouping",
+      y = "Count", 
+      title = "Captured observations by grouping type",
+      legend = "Make/Model name"
+    ) +
+    scale_x_discrete(
+      labels = c("Make", "Model")
+    )
+    
 # density bars of all numerical variables, sorted by ownership
   # pivot longer
   moped %>%
@@ -284,8 +305,24 @@ moped %>%
 # predictive analysis
 #####
 # problem type is binary classification
-# dummyvars?  
+# run models grouped on make and model respectively to test performance
+  
+  
+# seed for replication
+set.seed(100)
 
+# dummy variables
+
+  #model.matrix
+  # has issues with replicability across train and test dataframes
+  
+  #dummyVars
+  
+  #vtreat
+  
+  #designTreatmentsZ()
+  #prepare()
+  
 # test/train split
 split <-   
   initial_split(moped, prop = 0.75)
@@ -299,15 +336,44 @@ moped_test <-
 # log reg
   
   # model definition
-
-  # train model
-
+  logreg_model <- 
+    glm(owned ~ ., data = moped_train, family = "binomial")
+  
+  logreg_model
+  
+  # Call summary
+  summary(logreg_model)
+  
+  # Call glance
+  (perf <- glance(logreg))
+  
+  # Calculate pseudo-R-squared
+  (pseudoR2 <- 1 - perf$deviance/perf$null.deviance)
+  
   # test model
-
+  
+  moped_test$pred <- 
+    predict(logreg, moped_test, type = "response")
+  
+  # measure performance
+    # residuals
+    moped_test <- 
+      moped_test |>
+      mutate(residuals = pred - owned)
+    # RMSE
+    moped_test |>
+      summarize(rmse = sqrt(mean(residual^2)))
+    
+    # gain curve plot
+    GainCurvePlot(moped_test, xvar = "pred", "owned", "Moped reviewer ownership status prediction model")
+    
+    # ROC curve
+    
+    
 # xgboost
 
   # model definition
-
+  
   # train model
 
   # test model
