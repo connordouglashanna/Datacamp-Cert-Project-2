@@ -154,7 +154,7 @@ moped |>
       x = "Grouping",
       y = "Count", 
       title = "Captured observations by grouping type",
-      legend = "Make/Model name"
+      fill = "Make/Model name"
     ) +
     scale_x_discrete(
       labels = c("Make", "Model")
