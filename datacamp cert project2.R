@@ -50,10 +50,10 @@ moped <-
   moped %>%
   mutate(owned = ifelse(duration_owned == "Never owned", 0, 1), .keep = "unused")
 
-table(moped$owned)
+moped_og <- moped
 
 # checking other variables for NA values
-
+# storing for use later validating manipulation prior to analysis
 colSums(is.na(moped))
 
 # replacing NA values with 0 
@@ -307,26 +307,44 @@ moped %>%
 #####
 # problem type is binary classification
 # run models grouped on make and model respectively to test performance
-  
-  
+
 # seed for replication
 set.seed(100)
 
-# dummy variables
-
-  #model.matrix
-  # has issues with replicability across train and test dataframes
+### dummy variables notes
+  ###model.matrix
+  ### has issues with replication across train and test dataframes
+  ###dummyVars
+  ### applies to training data
+  ###https://win-vector.com/2017/04/15/encoding-categorical-variables-one-hot-and-beyond/
   
-  #dummyVars
-  # applies to training data
+# some pre-split manipulation to avoid duplication for treatment process
+  # adding NA values back in so vtreat can treat them
+  moped[moped == 0] <- NA
   
-  #vtreat
+  # checking to make sure we didn't leave any stragglers
+  colSums(moped == 0, na.rm = TRUE)
   
-  #designTreatmentsZ()
-  #prepare()
-
+  # we had one dummy in there, so I'm going to change that back to zeroes
+  moped <-
+    moped |>
+    mutate(owned = ifelse(is.na(owned) == TRUE, 0, 1))
   
-  #https://win-vector.com/2017/04/15/encoding-categorical-variables-one-hot-and-beyond/
+  # manually converting one variable to a dummy
+  moped <-
+    moped |>
+    mutate(commuter = ifelse(used_for == "Commuting", 1, 0), .keep = "unused")
+  
+  # merging categories that aren't big enough
+  #moped <- 
+    moped |>
+    mutate(model = ifelse(model %in% model_n_1$model, model, "Other"))
+  
+  # making sure I didn't botch anything
+  moped_og == moped
+  ### uh oh, better start from the original dataframe
+  ### go back and redo all prior code using pipes
+  ### culling the model variable manually
   
 # test/train split
 split <-   
@@ -338,11 +356,19 @@ moped_train <-
 moped_test <- 
   testing(split)
 
+# storing vtreat plan
+### drop the "other" variable to avoid collinearity??
+treatplan <- designTreatmentsZ(moped_train, colnames(moped_train), minFraction = 1/20) 
+
+# executing treatment
+train_treated <-  prepare(treatplan, moped_train)
+test_treated <- prepare(treatplan, moped_test)  
+
 # log reg
   
   # model definition
   logreg_model <- 
-    glm(owned ~ ., data = moped_train, family = "binomial")
+    glm(owned ~ ., data = train_treated, family = "binomial")
   
   logreg_model
   
@@ -350,30 +376,44 @@ moped_test <-
   summary(logreg_model)
   
   # Call glance
-  (perf <- glance(logreg))
+  (perf <- glance(logreg_model))
   
   # Calculate pseudo-R-squared
   (pseudoR2 <- 1 - perf$deviance/perf$null.deviance)
   
   # test model
   
-  moped_test$pred <- 
-    predict(logreg, moped_test, type = "response")
+  test_treated$pred <- 
+    predict(logreg_model, test_treated, type = "response")
   
   # measure performance
     # residuals
-    moped_test <- 
-      moped_test |>
+    test_treated <- 
+      test_treated |>
       mutate(residuals = pred - owned)
     # RMSE
-    moped_test |>
-      summarize(rmse = sqrt(mean(residual^2)))
+    test_treated |>
+      summarize(rmse = sqrt(mean(residuals^2)))
     
     # gain curve plot
-    GainCurvePlot(moped_test, xvar = "pred", "owned", "Moped reviewer ownership status prediction model")
+    GainCurvePlot(test_treated, xvar = "pred", "owned", "Moped reviewer ownership status prediction model")
     
-    # ROC curve
+    # Create a ROC curve
+    ROC <- roc(test_treated$owned, test_treated$pred)
     
+    # Plot the ROC curve
+    plot(ROC, col = "blue")
+    
+    # Calculate the area under the curve (AUC)
+    auc(ROC)
+    
+    # ROC curve #2
+    ROCPlot(test_treated, 
+            xvar = "pred", 
+            truthVar = "owned", 
+            truthTarget = ,
+            title = "Moped reviewer ownership status prediction model", 
+            add_beta_ideal_curve = TRUE)
     
 # xgboost
 
