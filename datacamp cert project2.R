@@ -411,17 +411,44 @@ test_treated <- prepare(treatplan, moped_test)
     ROCPlot(test_treated, 
             xvar = "pred", 
             truthVar = "owned", 
-            truthTarget = ,
+            truthTarget = TRUE,
             title = "Moped reviewer ownership status prediction model", 
             add_beta_ideal_curve = TRUE)
     
 # xgboost
 
-  # model definition
-  
-  # train model
-
-  # test model
+    # additional data prep
+    # define predictor and response variables in training set
+    train_x = data.matrix(train_treated[, -12])
+    train_y = train_treated[, 12]
+    
+    # define predictor and response variables in testing set
+    test_x = data.matrix(test_treated[, -12])
+    test_y = test_treated[, 12]
+    
+    # define final training and testing sets
+    xgb_train = xgb.DMatrix(data = train_x, label = train_y)
+    xgb_test = xgb.DMatrix(data = test_x, label = test_y)
+    
+    # training
+    # define watchlist
+    watchlist = list(train=xgb_train, test=xgb_test)
+    
+    # fit XGBoost model and display training and testing data at each round
+    model = xgb.train(data = xgb_train, max.depth = 3, watchlist=watchlist, nrounds = 70)
+    
+    # lowest RMSE was at round 37
+    # defining final model
+    final = xgboost(data = xgb_train, max.depth = 3, nrounds = 37, verbose = 0)
+    
+    # predictions 
+    fitness_15_test$pred = 
+      predict(final, fitness_15_test)
+    
+    mean((test_y - pred_y)^2) #mse
+    caret::MAE(test_y, pred_y) #mae
+    caret::RMSE(test_y, pred_y) #rmse
+    
 
 # possibly KNN?
 
