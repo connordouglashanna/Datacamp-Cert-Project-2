@@ -14,6 +14,8 @@ library(rsample)
 library(forcats)
 library(ggforce)
 library(vtreat)
+library(WVPlots)
+library(pROC)
 
 # Importing data from csv
 moped <- read_csv("School/datacamp/Datacamp-Cert-Project-2/moped.csv")
@@ -372,40 +374,22 @@ test_treated <- prepare(treatplan, moped_test)
   
   logreg_model
   
-  # Call summary
+  # summary of model
   summary(logreg_model)
   
-  # Call glance
+  # glance to get model stats
   (perf <- glance(logreg_model))
   
-  # Calculate pseudo-R-squared
+  # calculating pseudo-R-squared
   (pseudoR2 <- 1 - perf$deviance/perf$null.deviance)
   
   # test model
-  
   test_treated$pred <- 
     predict(logreg_model, test_treated, type = "response")
   
   # measure performance
-    # residuals
-    test_treated <- 
-      test_treated |>
-      mutate(residuals = pred - owned)
-    # RMSE
-    test_treated |>
-      summarize(rmse = sqrt(mean(residuals^2)))
-    
     # gain curve plot
     GainCurvePlot(test_treated, xvar = "pred", "owned", "Moped reviewer ownership status prediction model")
-    
-    # Create a ROC curve
-    ROC <- roc(test_treated$owned, test_treated$pred)
-    
-    # Plot the ROC curve
-    plot(ROC, col = "blue")
-    
-    # Calculate the area under the curve (AUC)
-    auc(ROC)
     
     # ROC curve #2
     ROCPlot(test_treated, 
@@ -417,40 +401,72 @@ test_treated <- prepare(treatplan, moped_test)
     
 # xgboost
 
-    # additional data prep
-    # define predictor and response variables in training set
-    train_x = data.matrix(train_treated[, -12])
-    train_y = train_treated[, 12]
+    ### original xgb data prep
+      # additional data prep
+      # define predictor and response variables in training set
+      #train_x = data.matrix(train_treated[, -12])
+      #train_y = train_treated[, 12]
+      
+      # define predictor and response variables in testing set
+      #test_x = data.matrix(test_treated[, -12])
+      #test_y = test_treated[, 12]
+      
+      # define final training and testing sets
+      #xgb_train = xgb.DMatrix(data = train_x, label = train_y)
+      #xgb_test = xgb.DMatrix(data = test_x, label = test_y)
     
-    # define predictor and response variables in testing set
-    test_x = data.matrix(test_treated[, -12])
-    test_y = test_treated[, 12]
+    ### replacement data prep using existing vtreat
+    ### investigate proper application of vtreat in R
     
-    # define final training and testing sets
-    xgb_train = xgb.DMatrix(data = train_x, label = train_y)
-    xgb_test = xgb.DMatrix(data = test_x, label = test_y)
+    # defining dataframes sans outcome
+      xgb_train <- 
+        train_treated |>
+        select(-owned) |>
+        as.matrix()
+      
+      xgb_test <- 
+        test_treated |>
+        select(-c(pred, owned)) |>
+        as.matrix()
+      
+    # running cross validation to find the ideal parameters
+      cv <- xgb.cv(data = xgb_train, 
+                   label = train_treated$owned,
+                   nrounds = 100,
+                   nfold = 5,
+                   objective = "binary:logistic",
+                   max_depth = 5,
+                   early_stopping_rounds = 5,
+                   verbose = FALSE   # silent
+      )
+    # fetching evaluation log
+      cv$evaluation_log |>
+        summarize(ntrees.train = which.min(train_logloss_mean),
+                  ntrees.test = which.min(test_logloss_mean))
     
-    # training
-    # define watchlist
-    watchlist = list(train=xgb_train, test=xgb_test)
-    
-    # fit XGBoost model and display training and testing data at each round
-    model = xgb.train(data = xgb_train, max.depth = 3, watchlist=watchlist, nrounds = 70)
-    
-    # lowest RMSE was at round 37
     # defining final model
-    final = xgboost(data = xgb_train, max.depth = 3, nrounds = 37, verbose = 0)
+    xgb_model <- xgboost(data = xgb_test, 
+                         label = test_treated$owned,
+                         objective = "binary:logistic",
+                         max.depth = 5, 
+                         nrounds = 15, 
+                         verbose = FALSE)
     
     # predictions 
-    fitness_15_test$pred = 
-      predict(final, fitness_15_test)
+    test_treated$pred <- 
+      predict(xgb_model, xgb_test)
     
-    mean((test_y - pred_y)^2) #mse
-    caret::MAE(test_y, pred_y) #mae
-    caret::RMSE(test_y, pred_y) #rmse
+    # measure performance
+    # gain curve plot
+    GainCurvePlot(test_treated, xvar = "pred", "owned", "Moped reviewer ownership status prediction model")
     
-
-# possibly KNN?
+    # ROC curve #2
+    ROCPlot(test_treated, 
+            xvar = "pred", 
+            truthVar = "owned", 
+            truthTarget = TRUE,
+            title = "Moped reviewer ownership status prediction model", 
+            add_beta_ideal_curve = TRUE)
 
 # model testing
 #####
