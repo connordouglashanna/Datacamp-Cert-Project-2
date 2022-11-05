@@ -87,83 +87,6 @@ moped |>
   scale_fill_viridis_d() +
   theme(legend.position = "none")
 
-# bar graph of counts by model name
-moped |>
-  ggplot(aes(
-    fct_infreq(model), fill = after_stat(count)
-  )) + 
-  geom_bar() + 
-  coord_flip() + 
-  labs(
-    title = "Total number of reviews for each moped model",
-    x = "Model", 
-    y = "Count"
-  ) + 
-  # including line showing the minimum count for inclusion as a group in splitting
-  geom_hline(yintercept = 713 * .10, color = "#440154FF") + 
-  theme_bw() + 
-  scale_fill_viridis_c() + 
-  theme(legend.position = "none") 
-
-# counts by brand
-moped |> 
-  separate(model, into = c("make", "model"), sep = "\\s", extra = "merge") |>
-  ggplot(aes(
-    fct_infreq(make), fill = after_stat(count)
-  )) + 
-  geom_bar() + 
-  coord_flip() + 
-  labs(
-    title = "Total number of reviews for each moped manufacturer",
-    x = "Make", 
-    y = "Count"
-  ) + 
-  geom_hline(yintercept = 713 * .10, color = "#440154FF") + 
-  theme_bw() + 
-  scale_fill_viridis_c() + 
-  theme(legend.position = "none") 
-
-# bar graph of observations in makes vs models meeting the requirements
-  # generating the desired summary stats
-  model_n_1 <- 
-    moped |>
-      group_by(model) |>
-      mutate(n = n()) |>
-      filter(n > 71.3) |>
-      count() |>
-      mutate(make = NA)
-
-  model_n_2 <- 
-    moped |> 
-      separate(model, into = c("make", "model"), sep = "\\s", extra = "merge") |>
-      group_by(make) |>
-      mutate(n = n()) |>
-      filter(n > 71.3) |>
-      count() |>
-      mutate(model = NA)
-  
-  # forming final matrix of information
-  model_n <- 
-    rbind(model_n_1, model_n_2) |>
-    mutate(type = ifelse(is.na(model) == TRUE, 1, 0),
-           model = ifelse(type == 1, make, model)) |>
-    select(-make) 
-  # generating the bar graph 
-  model_n |>
-  ggplot(aes(
-    as.factor(type), n, fill = model
-  )) + 
-    geom_col() + 
-    labs(
-      x = "Grouping",
-      y = "Count", 
-      title = "Captured observations by grouping type",
-      fill = "Make/Model name"
-    ) +
-    scale_x_discrete(
-      labels = c("Make", "Model")
-    )
-    
 # density bars of all numerical variables, sorted by ownership
   # pivot longer
   moped %>%
@@ -302,7 +225,83 @@ moped %>%
     ) + 
     scale_fill_viridis_c() +
     theme(legend.position = "none")
-
+  
+# bar graph of counts by model name
+  moped |>
+    ggplot(aes(
+      fct_infreq(model), fill = after_stat(count)
+    )) + 
+    geom_bar() + 
+    coord_flip() + 
+    labs(
+      title = "Total number of reviews for each moped model",
+      x = "Model", 
+      y = "Count"
+    ) + 
+    # including line showing the minimum count for inclusion as a group in splitting
+    geom_hline(yintercept = 713 * .10, color = "#440154FF") + 
+    theme_bw() + 
+    scale_fill_viridis_c() + 
+    theme(legend.position = "none") 
+  
+# counts by brand
+  moped |> 
+    separate(model, into = c("make", "model"), sep = "\\s", extra = "merge") |>
+    ggplot(aes(
+      fct_infreq(make), fill = after_stat(count)
+    )) + 
+    geom_bar() + 
+    coord_flip() + 
+    labs(
+      title = "Total number of reviews for each moped manufacturer",
+      x = "Make", 
+      y = "Count"
+    ) + 
+    geom_hline(yintercept = 713 * .10, color = "#440154FF") + 
+    theme_bw() + 
+    scale_fill_viridis_c() + 
+    theme(legend.position = "none") 
+  
+# bar graph of observations in makes vs models meeting the requirements
+  # generating the desired summary stats
+  model_n_1 <- 
+    moped |>
+    group_by(model) |>
+    mutate(n = n()) |>
+    filter(n > 71.3) |>
+    count() |>
+    mutate(make = NA)
+  
+  model_n_2 <- 
+    moped |> 
+    separate(model, into = c("make", "model"), sep = "\\s", extra = "merge") |>
+    group_by(make) |>
+    mutate(n = n()) |>
+    filter(n > 71.3) |>
+    count() |>
+    mutate(model = NA)
+  
+  # forming final matrix of information
+  model_n <- 
+    rbind(model_n_1, model_n_2) |>
+    mutate(type = ifelse(is.na(model) == TRUE, 1, 0),
+           model = ifelse(type == 1, make, model)) |>
+    select(-make) 
+  # generating the bar graph 
+  model_n |>
+    ggplot(aes(
+      as.factor(type), n, fill = model
+    )) + 
+    geom_col() + 
+    labs(
+      x = "Grouping",
+      y = "Count", 
+      title = "Captured observations by grouping type",
+      fill = "Make/Model name"
+    ) +
+    scale_x_discrete(
+      labels = c("Make", "Model")
+    )
 
 # predictive analysis
 #####
@@ -419,6 +418,3 @@ test_treated <- prepare(treatplan, moped_test)
             truthTarget = TRUE,
             title = "Moped reviewer ownership status prediction model", 
             add_beta_ideal_curve = TRUE)
-
-# model testing
-#####
