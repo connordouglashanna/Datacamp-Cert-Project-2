@@ -52,6 +52,7 @@ moped <-
   moped %>%
   mutate(owned = ifelse(duration_owned == "Never owned", 0, 1), .keep = "unused")
 
+# storing the original moped df for when I want the NAs for vtreat
 moped_og <- moped
 
 # checking other variables for NA values
@@ -210,8 +211,6 @@ moped %>%
   summarize(prop_owned = mean(owned), n = n()) %>%
   arrange(prop_owned)
 
-## potentially incorporate ttest to determine if makes and not models are the population?
-
 # pie plot to investigate ownership rate by model
   # generating a list of desired models
   model_list <- 
@@ -224,7 +223,7 @@ moped %>%
 
   # generating a table with clear aesthetic assignments for ggplot
   moped |>
-    # culling models with fewer than 10 observations using list from earlier
+    # culling low-n models using the list from earlier
     filter(model %in% model_list) |>
     # modifying owned to a factor
     mutate(owned = ifelse(owned == 0, "Not owned", "Owned")) |>
@@ -308,45 +307,15 @@ moped %>%
 # predictive analysis
 #####
 # problem type is binary classification
-# run models grouped on make and model respectively to test performance
 
 # seed for replication
 set.seed(100)
-
-### dummy variables notes
-  ###model.matrix
-  ### has issues with replication across train and test dataframes
-  ###dummyVars
-  ### applies to training data
   ###https://win-vector.com/2017/04/15/encoding-categorical-variables-one-hot-and-beyond/
-  
-# some pre-split manipulation to avoid duplication for treatment process
-  # adding NA values back in so vtreat can treat them
-  moped[moped == 0] <- NA
-  
-  # checking to make sure we didn't leave any stragglers
-  colSums(moped == 0, na.rm = TRUE)
-  
-  # we had one dummy in there, so I'm going to change that back to zeroes
-  moped <-
-    moped |>
-    mutate(owned = ifelse(is.na(owned) == TRUE, 0, 1))
   
   # manually converting one variable to a dummy
   moped <-
-    moped |>
+    moped_og |>
     mutate(commuter = ifelse(used_for == "Commuting", 1, 0), .keep = "unused")
-  
-  # merging categories that aren't big enough
-  #moped <- 
-    moped |>
-    mutate(model = ifelse(model %in% model_n_1$model, model, "Other"))
-  
-  # making sure I didn't botch anything
-  moped_og == moped
-  ### uh oh, better start from the original dataframe
-  ### go back and redo all prior code using pipes
-  ### culling the model variable manually
   
 # test/train split
 split <-   
@@ -359,7 +328,6 @@ moped_test <-
   testing(split)
 
 # storing vtreat plan
-### drop the "other" variable to avoid collinearity??
 treatplan <- designTreatmentsZ(moped_train, colnames(moped_train), minFraction = 1/20) 
 
 # executing treatment
@@ -400,23 +368,7 @@ test_treated <- prepare(treatplan, moped_test)
             add_beta_ideal_curve = TRUE)
     
 # xgboost
-
-    ### original xgb data prep
-      # additional data prep
-      # define predictor and response variables in training set
-      #train_x = data.matrix(train_treated[, -12])
-      #train_y = train_treated[, 12]
-      
-      # define predictor and response variables in testing set
-      #test_x = data.matrix(test_treated[, -12])
-      #test_y = test_treated[, 12]
-      
-      # define final training and testing sets
-      #xgb_train = xgb.DMatrix(data = train_x, label = train_y)
-      #xgb_test = xgb.DMatrix(data = test_x, label = test_y)
-    
-    ### replacement data prep using existing vtreat
-    ### investigate proper application of vtreat in R
+    ### investigate full documentation of vtreat in R
     
     # defining dataframes sans outcome
       xgb_train <- 
