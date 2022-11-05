@@ -311,10 +311,10 @@ moped %>%
 set.seed(100)
   ###https://win-vector.com/2017/04/15/encoding-categorical-variables-one-hot-and-beyond/
   
-  # manually converting one variable to a dummy
-  moped <-
-    moped_og |>
-    mutate(commuter = ifelse(used_for == "Commuting", 1, 0), .keep = "unused")
+# manually converting one variable to a dummy
+moped <-
+  moped_og |>
+  mutate(commuter = ifelse(used_for == "Commuting", 1, 0), .keep = "unused")
   
 # test/train split
 split <-   
@@ -367,51 +367,51 @@ test_treated <- prepare(treatplan, moped_test)
             add_beta_ideal_curve = TRUE)
     
 # xgboost
-    ### investigate full documentation of vtreat in R
+  ### investigate full documentation of vtreat in R
     
-    # defining dataframes sans outcome
-      xgb_train <- 
-        train_treated |>
-        select(-owned) |>
-        as.matrix()
+  # defining dataframes sans outcome
+    xgb_train <- 
+      train_treated |>
+      select(-owned) |>
+      as.matrix()
       
-      xgb_test <- 
-        test_treated |>
-        select(-c(pred, owned)) |>
-        as.matrix()
+    xgb_test <- 
+      test_treated |>
+      select(-c(pred, owned)) |>
+      as.matrix()
       
-    # running cross validation to find the ideal parameters
-      cv <- xgb.cv(data = xgb_train, 
-                   label = train_treated$owned,
-                   nrounds = 100,
-                   nfold = 5,
-                   objective = "binary:logistic",
-                   max_depth = 5,
-                   early_stopping_rounds = 5,
-                   verbose = FALSE   # silent
+  # running cross validation to find the ideal parameters
+    cv <- xgb.cv(data = xgb_train, 
+                 label = train_treated$owned,
+                 nrounds = 100,
+                 nfold = 5,
+                 objective = "binary:logistic",
+                 max_depth = 5,
+                 early_stopping_rounds = 5,
+                 verbose = FALSE   # silent
       )
-    # fetching evaluation log
-      cv$evaluation_log |>
-        summarize(ntrees.train = which.min(train_logloss_mean),
-                  ntrees.test = which.min(test_logloss_mean))
-    
-    # defining final model
-    xgb_model <- xgboost(data = xgb_test, 
-                         label = test_treated$owned,
-                         objective = "binary:logistic",
-                         max.depth = 5, 
-                         nrounds = 15, 
-                         verbose = FALSE)
-    
-    # predictions 
-    test_treated$pred <- 
-      predict(xgb_model, xgb_test)
-    
-    # measure performance
-    # gain curve plot
+  # fetching evaluation log
+    cv$evaluation_log |>
+      summarize(ntrees.train = which.min(train_logloss_mean),
+                ntrees.test = which.min(test_logloss_mean))
+  
+  # defining final model
+  xgb_model <- xgboost(data = xgb_test, 
+                       label = test_treated$owned,
+                       objective = "binary:logistic",
+                       max.depth = 5, 
+                       nrounds = 15, 
+                       verbose = FALSE)
+  
+  # predictions 
+  test_treated$pred <- 
+    predict(xgb_model, xgb_test)
+  
+  # measure performance
+  # gain curve plot
     GainCurvePlot(test_treated, xvar = "pred", "owned", "Moped reviewer ownership status prediction model")
-    
-    # ROC curve #2
+  
+  # ROC curve #2
     ROCPlot(test_treated, 
             xvar = "pred", 
             truthVar = "owned", 
