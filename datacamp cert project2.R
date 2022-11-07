@@ -327,15 +327,23 @@ moped_test <-
   testing(split)
 
 # storing vtreat plan
-treatplan <- designTreatmentsZ(moped_train, colnames(moped_train), minFraction = 1/20) 
+treatplan <- designTreatmentsZ(moped_train, colnames(moped_train), minFraction = 1/10) 
+
+# inspecting results
+View(treatplan[["scoreFrame"]])
 
 # executing treatment
-train_treated <-  prepare(treatplan, moped_train)
-test_treated <- prepare(treatplan, moped_test)  
+train_treated <-  
+  prepare(treatplan, moped_train) |>
+  select(-model_catP)
+
+test_treated <- 
+  prepare(treatplan, moped_test)  |>
+  select(-model_catP)
 
 # log reg
   
-  # model definition
+  # model definition/training
   logreg_model <- 
     glm(owned ~ ., data = train_treated, family = "binomial")
   
@@ -344,27 +352,13 @@ test_treated <- prepare(treatplan, moped_test)
   # summary of model
   summary(logreg_model)
   
-  # glance to get model stats
-  (perf <- glance(logreg_model))
-  
-  # calculating pseudo-R-squared
-  (pseudoR2 <- 1 - perf$deviance/perf$null.deviance)
-  
   # test model
   test_treated$pred <- 
     predict(logreg_model, test_treated, type = "response")
   
-  # measure performance
-    # gain curve plot
-    GainCurvePlot(test_treated, xvar = "pred", "owned", "Moped reviewer ownership status prediction model")
-    
-    # ROC curve #2
-    ROCPlot(test_treated, 
-            xvar = "pred", 
-            truthVar = "owned", 
-            truthTarget = TRUE,
-            title = "Moped reviewer ownership status prediction model", 
-            add_beta_ideal_curve = TRUE)
+  # saving this dataframe for later
+  logreg_pred <- 
+    test_treated
     
 # xgboost
   ### investigate full documentation of vtreat in R
@@ -407,14 +401,47 @@ test_treated <- prepare(treatplan, moped_test)
   test_treated$pred <- 
     predict(xgb_model, xgb_test)
   
-  # measure performance
+  # saving for evaluation
+  xgb_pred <- 
+    test_treated
+
+# model evaluation
+#####
+
+# logreg evaluation
+  # glance to get model stats
+  (perf <- glance(logreg_model))
+  
+  # calculating pseudo-R-squared
+  (pseudoR2 <- 1 - perf$deviance/perf$null.deviance)
+  
   # gain curve plot
-    GainCurvePlot(test_treated, xvar = "pred", "owned", "Moped reviewer ownership status prediction model")
+  GainCurvePlot(logreg_pred, xvar = "pred", "owned", "Logistic regression model for moped ownership")
+  
+  # ROC curve
+  ROCPlot(logreg_pred, 
+          xvar = "pred", 
+          truthVar = "owned", 
+          truthTarget = TRUE,
+          title = "Logistic regression model for moped ownership", 
+          add_beta_ideal_curve = TRUE)
+  
+# xgb evaluation
+  # gain curve plot
+  GainCurvePlot(xgb_pred, xvar = "pred", "owned", "Xtreme Gradient Boosting model for moped ownership")
   
   # ROC curve #2
-    ROCPlot(test_treated, 
-            xvar = "pred", 
-            truthVar = "owned", 
-            truthTarget = TRUE,
-            title = "Moped reviewer ownership status prediction model", 
-            add_beta_ideal_curve = TRUE)
+  ROCPlot(xgb_pred, 
+          xvar = "pred", 
+          truthVar = "owned", 
+          truthTarget = TRUE,
+          title = "Xtreme Gradient Boosting model for moped ownership", 
+          add_beta_ideal_curve = TRUE)
+  
+  # inspecting feature importance
+  (importance_matrix <- 
+      xgb.importance(feature_names = colnames(xgb_train), 
+                     model = xgb_model))
+  
+  # visualizing feature importance
+  xgb.plot.importance(importance_matrix[1:14,])
