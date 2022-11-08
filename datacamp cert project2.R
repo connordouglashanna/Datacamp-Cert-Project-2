@@ -124,7 +124,8 @@ moped |>
       
 # proportion of ownership by use 
 moped %>%
-  group_by(used_for) %>%
+  mutate(commuter = ifelse(used_for == "Commuting", 1, 0), .keep = "unused") |>
+  group_by(commuter) %>%
   summarize(prop_owned = mean(owned), n = n()) %>%
   arrange(prop_owned)
 
@@ -303,6 +304,13 @@ moped %>%
       labels = c("Make", "Model")
     )
 
+### conducting t.test to determine if the population means are at the brand or model level
+  
+# examining balance of owned/not owned observations in the data
+moped |> 
+  group_by(owned) |> 
+  summarize(n = n())
+  
 # predictive analysis
 #####
 # problem type is binary classification
@@ -318,7 +326,7 @@ moped <-
   
 # test/train split
 split <-   
-  initial_split(moped, prop = 0.75)
+  initial_split(moped, prop = 0.8, strata = "model")
 
 moped_train <- 
   training(split)
@@ -388,13 +396,41 @@ test_treated <-
     cv$evaluation_log |>
       summarize(ntrees.train = which.min(train_logloss_mean),
                 ntrees.test = which.min(test_logloss_mean))
+    
+  # checking cross validation results using xgb.train()
+  # generating appropriate matrices
+  xgbDM_train <- 
+    xgb.DMatrix(data = xgb_train, label = train_treated$owned)
+    
+  xgbDM_test <- 
+    xgb.DMatrix(data = xgb_test, label = test_treated$owned)
   
+  # generating watchlist
+  watchlist <- 
+    list(train = xgbDM_train, test = xgbDM_test)
+  
+  # running xgb.train() 
+  xgb_training <- 
+    xgb.train(
+      data = xgbDM_train,
+      max.depth = 5, 
+      objective = "binary:logistic",
+      watchlist = watchlist, 
+      nrounds = 40,
+      verbose = 0
+    )
+  
+  # obtaining evaluation log
+  xgb_training$evaluation_log |>
+    summarize(ntrees.train = which.min(train_logloss),
+              ntrees.test = which.min(test_logloss))
+    
   # defining final model
-  xgb_model <- xgboost(data = xgb_test, 
-                       label = test_treated$owned,
+  xgb_model <- xgboost(data = xgb_train, 
+                       label = train_treated$owned,
                        objective = "binary:logistic",
                        max.depth = 5, 
-                       nrounds = 15, 
+                       nrounds = 14, 
                        verbose = FALSE)
   
   # predictions 
@@ -445,3 +481,4 @@ test_treated <-
   
   # visualizing feature importance
   xgb.plot.importance(importance_matrix[1:14,])
+  
