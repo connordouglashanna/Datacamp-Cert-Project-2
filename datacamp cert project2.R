@@ -416,7 +416,7 @@ test_treated <-
       max.depth = 5, 
       objective = "binary:logistic",
       watchlist = watchlist, 
-      nrounds = 40,
+      nrounds = 100,
       verbose = 0
     )
   
@@ -431,11 +431,12 @@ test_treated <-
                        objective = "binary:logistic",
                        max.depth = 5, 
                        nrounds = 14, 
-                       verbose = FALSE)
+                       verbose = FALSE
+                       )
   
   # predictions 
   test_treated$pred <- 
-    predict(xgb_model, xgb_test)
+    predict(xgb_model, xgb_test, nrounds = 9)
   
   # saving for evaluation
   xgb_pred <- 
