@@ -303,8 +303,6 @@ moped %>%
     scale_x_discrete(
       labels = c("Make", "Model")
     )
-
-### conducting t.test to determine if the population means are at the brand or model level
   
 # examining balance of owned/not owned observations in the data
 moped |> 
@@ -352,25 +350,23 @@ test_treated <-
 # log reg
   
   # model definition/training
-  logreg_model <- 
+  logreg_model_1 <- 
     glm(owned ~ ., data = train_treated, family = "binomial")
   
-  logreg_model
+  logreg_model_1
   
   # summary of model
-  summary(logreg_model)
+  summary(logreg_model_1)
   
   # test model
   test_treated$pred <- 
-    predict(logreg_model, test_treated, type = "response")
+    predict(logreg_model_1, test_treated, type = "response")
   
   # saving this dataframe for later
-  logreg_pred <- 
+  logreg_pred_1 <- 
     test_treated
     
 # xgboost
-  ### investigate full documentation of vtreat in R
-    
   # defining dataframes sans outcome
     xgb_train <- 
       train_treated |>
@@ -389,7 +385,7 @@ test_treated <-
                  nfold = 5,
                  objective = "binary:logistic",
                  max_depth = 5,
-                 early_stopping_rounds = 5,
+                 early_stopping_rounds = 5, 
                  verbose = FALSE   # silent
       )
   # fetching evaluation log
@@ -426,37 +422,282 @@ test_treated <-
               ntrees.test = which.min(test_logloss))
     
   # defining final model
-  xgb_model <- xgboost(data = xgb_train, 
+  xgb_model_1 <- xgboost(data = xgb_train, 
                        label = train_treated$owned,
                        objective = "binary:logistic",
                        max.depth = 5, 
-                       nrounds = 14, 
+                       nrounds = 13, 
                        verbose = FALSE
                        )
   
   # predictions 
   test_treated$pred <- 
-    predict(xgb_model, xgb_test, nrounds = 9)
+    predict(xgb_model_1, xgb_test, nrounds = 8)
   
   # saving for evaluation
-  xgb_pred <- 
+  xgb_pred_1 <- 
     test_treated
+  
+  # saving colnames for evaluation
+  colnames_1 <- 
+    colnames(xgb_train)
 
+# models without stratification
+#####
+# models without stratification
+  # test/train split
+  split <-   
+    initial_split(moped, prop = 0.8)
+  
+  moped_train <- 
+    training(split)
+  
+  moped_test <- 
+    testing(split)
+  
+  # storing new vtreat plan
+  treatplan <- designTreatmentsZ(moped_train, colnames(moped_train), minFraction = 1/10) 
+  
+  # inspecting results
+  View(treatplan[["scoreFrame"]])
+  
+  # executing treatment
+  train_treated <-  
+    prepare(treatplan, moped_train) |>
+    select(-model_catP)
+  
+  test_treated <- 
+    prepare(treatplan, moped_test)  |>
+    select(-model_catP)
+  
+  # log reg
+  # model definition/training
+  logreg_model_2 <- 
+    glm(owned ~ ., data = train_treated, family = "binomial")
+  
+  logreg_model_2
+  
+  # summary of model
+  summary(logreg_model_2)
+  
+  # test model
+  test_treated$pred <- 
+    predict(logreg_model_2, test_treated, type = "response")
+  
+  # saving this dataframe for later
+  logreg_pred_2 <- 
+    test_treated
+  
+  # xgboost
+  # defining dataframes sans outcome
+  xgb_train <- 
+    train_treated |>
+    select(-owned) |>
+    as.matrix()
+  
+  xgb_test <- 
+    test_treated |>
+    select(-c(pred, owned)) |>
+    as.matrix()
+  
+  # generating appropriate matrices
+  xgbDM_train <- 
+    xgb.DMatrix(data = xgb_train, label = train_treated$owned)
+  
+  xgbDM_test <- 
+    xgb.DMatrix(data = xgb_test, label = test_treated$owned)
+  
+  # running cross validation to find the ideal parameters
+  cv <- xgb.cv(data = xgbDM_train,
+               nrounds = 100,
+               nfold = 5,
+               objective = "binary:logistic",
+               max_depth = 5,
+               early_stopping_rounds = 5, 
+               verbose = FALSE   # silent
+  )
+  # fetching evaluation log
+  cv$evaluation_log |>
+    summarize(ntrees.train = which.min(train_logloss_mean),
+              ntrees.test = which.min(test_logloss_mean))
+  
+  # checking cross validation results using xgb.train()
+  # generating watchlist
+  watchlist <- 
+    list(train = xgbDM_train, test = xgbDM_test)
+  
+  # running xgb.train() 
+  xgb_training <- 
+    xgb.train(
+      data = xgbDM_train,
+      max.depth = 5, 
+      objective = "binary:logistic",
+      watchlist = watchlist, 
+      nrounds = 100,
+      verbose = 0
+    )
+  
+  # obtaining evaluation log
+  xgb_training$evaluation_log |>
+    summarize(ntrees.train = which.min(train_logloss),
+              ntrees.test = which.min(test_logloss))
+  
+  # defining final model
+  xgb_model_2 <- xgboost(data = xgbDM_train, 
+                               objective = "binary:logistic",
+                               max.depth = 5, 
+                               nrounds = 14, 
+                               verbose = FALSE
+  )
+  
+  # predictions 
+  test_treated$pred <- 
+    predict(xgb_model_2, xgb_test, nrounds = 9)
+  
+  # saving for evaluation
+  xgb_pred_2 <- 
+    test_treated
+  
+  # saving colnames for evaluation
+  colnames_2 <- 
+    colnames(xgb_train)
+
+# models without `model`
+#####
+# models without `model`
+  # test/train split
+  split <-
+    moped |>
+    select(-model) |>
+    initial_split(prop = 0.8)
+  
+  moped_train <- 
+    training(split)
+  
+  moped_test <- 
+    testing(split)
+  
+  # storing new vtreat plan
+  treatplan <- designTreatmentsZ(moped_train, colnames(moped_train), minFraction = 1/10) 
+  
+  # inspecting results
+  View(treatplan[["scoreFrame"]])
+  
+  # executing treatment
+  train_treated <-  
+    prepare(treatplan, moped_train)
+  
+  test_treated <- 
+    prepare(treatplan, moped_test)
+  
+# log reg
+  # model definition/training
+  logreg_model_3 <- 
+    glm(owned ~ ., data = train_treated, family = "binomial")
+  
+  logreg_model_3
+  
+  # summary of model
+  summary(logreg_model_3)
+  
+  # test model
+  test_treated$pred <- 
+    predict(logreg_model_3, test_treated, type = "response")
+  
+  # saving this dataframe for evaluation
+  logreg_pred_3 <- 
+    test_treated
+  
+# xgboost
+  # defining dataframes sans outcome
+  xgb_train <- 
+    train_treated |>
+    select(-owned) |>
+    as.matrix()
+  
+  xgb_test <- 
+    test_treated |>
+    select(-c(pred, owned)) |>
+    as.matrix()
+  
+  # generating appropriate matrices
+  xgbDM_train <- 
+    xgb.DMatrix(data = xgb_train, label = train_treated$owned)
+  
+  xgbDM_test <- 
+    xgb.DMatrix(data = xgb_test, label = test_treated$owned)
+  
+  
+  # running cross validation to find the ideal parameters
+  cv <- xgb.cv(data = xgbDM_train, 
+               nrounds = 100,
+               nfold = 5,
+               objective = "binary:logistic",
+               max_depth = 5,
+               early_stopping_rounds = 5, 
+               verbose = FALSE   # silent
+  )
+  # fetching evaluation log
+  cv$evaluation_log |>
+    summarize(ntrees.train = which.min(train_logloss_mean),
+              ntrees.test = which.min(test_logloss_mean))
+  
+  # checking cross validation results using xgb.train()
+  # generating watchlist
+  watchlist <- 
+    list(train = xgbDM_train, test = xgbDM_test)
+  
+  # running xgb.train() 
+  xgb_training <- 
+    xgb.train(
+      data = xgbDM_train,
+      max.depth = 5, 
+      objective = "binary:logistic",
+      watchlist = watchlist, 
+      nrounds = 100,
+      verbose = 0
+    )
+  
+  # obtaining evaluation log
+  xgb_training$evaluation_log |>
+    summarize(ntrees.train = which.min(train_logloss),
+              ntrees.test = which.min(test_logloss))
+  
+  # defining final model
+  xgb_model_3 <- xgboost(data = xgbDM_train, 
+                             objective = "binary:logistic",
+                             max.depth = 5, 
+                             nrounds = 15, 
+                             verbose = FALSE
+  )
+  
+  # predictions 
+  test_treated$pred <- 
+    predict(xgb_model_3, xgb_test, nrounds = 10)
+  
+  # saving for evaluation
+  xgb_pred_3 <- 
+    test_treated
+  
+  # saving variable names for evaluation
+  colnames_3 <- 
+    colnames(xgb_train)
+  
 # model evaluation
 #####
-
+# model set 1 evaluation
 # logreg evaluation
   # glance to get model stats
-  (perf <- glance(logreg_model))
+  (perf <- glance(logreg_model_1))
   
   # calculating pseudo-R-squared
   (pseudoR2 <- 1 - perf$deviance/perf$null.deviance)
   
   # gain curve plot
-  GainCurvePlot(logreg_pred, xvar = "pred", "owned", "Logistic regression model for moped ownership")
+  GainCurvePlot(logreg_pred_1, xvar = "pred", "owned", "Logistic regression model for moped ownership")
   
   # ROC curve
-  ROCPlot(logreg_pred, 
+  ROCPlot(logreg_pred_1, 
           xvar = "pred", 
           truthVar = "owned", 
           truthTarget = TRUE,
@@ -465,10 +706,10 @@ test_treated <-
   
 # xgb evaluation
   # gain curve plot
-  GainCurvePlot(xgb_pred, xvar = "pred", "owned", "Xtreme Gradient Boosting model for moped ownership")
+  GainCurvePlot(xgb_pred_1, xvar = "pred", "owned", "Xtreme Gradient Boosting model for moped ownership")
   
   # ROC curve #2
-  ROCPlot(xgb_pred, 
+  ROCPlot(xgb_pred_1, 
           xvar = "pred", 
           truthVar = "owned", 
           truthTarget = TRUE,
@@ -477,9 +718,91 @@ test_treated <-
   
   # inspecting feature importance
   (importance_matrix <- 
-      xgb.importance(feature_names = colnames(xgb_train), 
-                     model = xgb_model))
+      xgb.importance(feature_names = colnames_1, 
+                     model = xgb_model_1))
   
   # visualizing feature importance
   xgb.plot.importance(importance_matrix[1:14,])
+  
+# model set 2 evaluation
+#####
+# model set 2 evaluation
+  # logreg evaluation
+  # glance to get model stats
+  (perf <- glance(logreg_model_2))
+  
+  # calculating pseudo-R-squared
+  (pseudoR2 <- 1 - perf$deviance/perf$null.deviance)
+  
+  # gain curve plot
+  GainCurvePlot(logreg_pred_2, xvar = "pred", "owned", "Logistic regression model for moped ownership")
+  
+  # ROC curve
+  ROCPlot(logreg_pred_2, 
+          xvar = "pred", 
+          truthVar = "owned", 
+          truthTarget = TRUE,
+          title = "Logistic regression model for moped ownership", 
+          add_beta_ideal_curve = TRUE)
+  
+  # xgb evaluation
+  # gain curve plot
+  GainCurvePlot(xgb_pred_2, xvar = "pred", "owned", "Xtreme Gradient Boosting model for moped ownership")
+  
+  # ROC curve #2
+  ROCPlot(xgb_pred_2, 
+          xvar = "pred", 
+          truthVar = "owned", 
+          truthTarget = TRUE,
+          title = "Xtreme Gradient Boosting model for moped ownership", 
+          add_beta_ideal_curve = TRUE)
+  
+  # inspecting feature importance
+  (importance_matrix <- 
+      xgb.importance(feature_names = colnames_2, 
+                     model = xgb_model_2))
+  
+  # visualizing feature importance
+  xgb.plot.importance(importance_matrix[1:13,])
+  
+# model set 3 evaluation
+#####
+# model set 3 evaluation
+  # logreg evaluation
+  # glance to get model stats
+  (perf <- glance(logreg_model_3))
+  
+  # calculating pseudo-R-squared
+  (pseudoR2 <- 1 - perf$deviance/perf$null.deviance)
+  
+  # gain curve plot
+  GainCurvePlot(logreg_pred_3, xvar = "pred", "owned", "Logistic regression model for moped ownership")
+  
+  # ROC curve
+  ROCPlot(logreg_pred_3, 
+          xvar = "pred", 
+          truthVar = "owned", 
+          truthTarget = TRUE,
+          title = "Logistic regression model for moped ownership", 
+          add_beta_ideal_curve = TRUE)
+  
+  # xgb evaluation
+  # gain curve plot
+  GainCurvePlot(xgb_pred_3, xvar = "pred", "owned", "Xtreme Gradient Boosting model for moped ownership")
+  
+  # ROC curve #2
+  ROCPlot(xgb_pred_3, 
+          xvar = "pred", 
+          truthVar = "owned", 
+          truthTarget = TRUE,
+          title = "Xtreme Gradient Boosting model for moped ownership", 
+          add_beta_ideal_curve = TRUE)
+  
+  # inspecting feature importance
+  (importance_matrix <- 
+      xgb.importance(feature_names = colnames_3, 
+                     model = xgb_model_3))
+  
+  # visualizing feature importance
+  xgb.plot.importance(importance_matrix[1:11,])
   
