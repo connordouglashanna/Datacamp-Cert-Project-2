@@ -1,4 +1,8 @@
 # Analysis for R certification
+#### update the data validation section
+#### update the data exploration section
+#### make sure the pipeline of moped_NA to the analysis runs correctly
+
 
 # Loading packages
 library(tidyverse)
@@ -48,25 +52,102 @@ moped %>%
 # now to correct issues mentioned in the documentation
 # "owned for" ownership column should be changed to indicate ownership as a dummy
 
+# checking for pre-modification status
+table(moped$duration_owned)
+
+# generating new variable from duration_owned to match documentation
 moped <- 
   moped %>%
-  mutate(owned = ifelse(duration_owned == "Never owned", 0, 1), .keep = "unused")
+  mutate(text_owned = ifelse(duration_owned == "Never owned", 
+                        duration_owned, 
+                        "Owned")) 
+
+# generating new dummy variable for use when appropriate
+moped <- 
+  moped |>
+  mutate(owned = ifelse(duration_owned == "Never owned", 0, 1),
+         .keep = "unused")
 
 # storing the original moped df for when I want the NAs for vtreat
-moped_og <- moped
+moped_NA <- moped |>
+  # removing the duration_owned variable since it won't be needed for analysis
+              select(-text_owned)
+
+# rechecking compared to post-modification status
+table(moped$owned)
 
 # checking other variables for NA values
 # storing for use later validating manipulation prior to analysis
+(NAtable <- 
+  colSums(is.na(moped)))
+
+# this matches the documentation for variables requiring NA replacement
+# now to perform replacements individually
+  # extra_features
+  moped <- 
+    moped |>
+    mutate(extra_features = ifelse(is.na(extra_features) == T, 0, extra_features), .keep = "unused")
+  
+  # checking results
+  table(moped$extra_features)
+  
+  # maint_cost  
+  moped <- 
+    moped |>
+    mutate(maint_cost = ifelse(is.na(maint_cost) == T, 0, maint_cost), .keep = "unused")
+
+  # checking results 
+  table(moped$maint_cost)
+  
+  # value
+  moped <-
+    moped |>
+    mutate(value = ifelse(is.na(value) == T, 0, value), .keep = "unused")
+  
+  # checking results
+  table(moped$value)
+  
+  # comfort 
+  moped <- 
+    moped |>
+    mutate(comfort = ifelse(is.na(comfort) == T, 0, comfort), .keep = "unused")
+  
+  # checking results 
+  table(moped$comfort)
+  
+# checking to make sure we've replaced all NA values
 colSums(is.na(moped))
+  
+# checking to ensure that our new 0 values reflect prior NA values
+(Zerotable <-
+  colSums(moped == 0))
 
-# replacing NA values with 0 
+(replacement_test <- 
+  Zerotable == NAtable)
+  
+# all variables match except owned
+# owned is a dummy variable so this makes sense
 
-moped[is.na(moped)] <- 0
+# double checking the other variables against criteria
+# visual_appeal
+table(moped$visual_appeal)
 
-colSums(is.na(moped))
+# reliability
+table(moped$reliability)
 
+# model 
+table(moped$model)
+
+# used_for
+table(moped$used_for)
+
+# owned 
+table(moped$owned)
+
+# text_owned
+table(moped$text_owned)
+  
 # checking for entries outside expected values
-
 summary(moped)
 
 # exploratory analysis
@@ -91,9 +172,7 @@ moped |>
   # pivot longer
   moped %>%
     pivot_longer(visual_appeal:comfort) %>%
-    select(value, name, owned) %>%
-  # recoding ownership values 
-    mutate(owned = ifelse(owned == 0, "Not owned", "Owned")) %>%
+    select(value, name, text_owned) %>%
   # recoding names of variables for facet titles
     mutate(name = recode(name,
                          "comfort" = "Comfort",
@@ -106,7 +185,7 @@ moped |>
     filter(value > 0) %>%
   # plot generation
   ggplot(aes(
-    value, fill = as.factor(owned), alpha = 0.9
+    value, fill = text_owned, alpha = 0.9
   )) + 
     geom_histogram(breaks = seq(0.5, 5.5, 1), position = "identity", aes(y = ..density..)) + 
     facet_wrap(vars(name), scales = "free_y") + 
@@ -118,10 +197,15 @@ moped |>
     ) + 
     guides(fill = "legend", alpha = "none") + 
     scale_fill_manual(values = c(
-      'Not owned' = '#EE6A50',
+      'Never owned' = '#EE6A50',
       'Owned' = '#87CEFA'
     ))
       
+#proportion of ownership across dataframe
+moped |>
+  summarize(prop_owned = mean(owned), n = n()) |>
+  arrange(prop_owned)
+
 # proportion of ownership by use 
 moped %>%
   mutate(commuter = ifelse(used_for == "Commuting", 1, 0), .keep = "unused") |>
@@ -149,9 +233,7 @@ moped %>%
   moped |>
     # culling low-n models using the list from earlier
     filter(model %in% model_list) |>
-    # modifying owned to a factor
-    mutate(owned = ifelse(owned == 0, "Not owned", "Owned")) |>
-    group_by(model, owned) |>
+    group_by(model, text_owned) |>
     summarize(n = n()) |>
   # generating pie chart 
   ggplot(
@@ -159,7 +241,7 @@ moped %>%
         x0 = 0, y0 = 0,
         r0 = 0, r = 1,
         amount = n,
-        fill = owned,
+        fill = text_owned,
       )
     ) + 
     geom_arc_bar(stat = "pie") + 
@@ -168,7 +250,7 @@ moped %>%
     labs(title = "Ownership proportion in moped reviews, by model", fill = "Reviewer ownership") + 
     facet_wrap(vars(model)) + 
     scale_fill_manual(values = c(
-      'Not owned' = '#EE6A50',
+      'Never owned' = '#EE6A50',
       'Owned' = '#87CEFA'
     )) + 
     theme(
@@ -188,7 +270,7 @@ moped %>%
     # recoding the use variable to a dummy
     mutate(commuter = ifelse(used_for == "Commuting", 1, 0)) %>% 
     # removing legacy/categorical variables
-    select(-c(model, used_for)) %>%
+    select(-c(model, used_for, text_owned)) %>%
     na.omit() %>%
     scale() %>%
     prcomp()
@@ -306,7 +388,7 @@ moped %>%
   
 # examining balance of owned/not owned observations in the data
 moped |> 
-  group_by(owned) |> 
+  group_by(text_owned) |> 
   summarize(n = n())
   
 # predictive analysis
@@ -319,7 +401,7 @@ set.seed(100)
   
 # manually converting one variable to a dummy
 moped <-
-  moped_og |>
+  moped_NA |>
   mutate(commuter = ifelse(used_for == "Commuting", 1, 0), .keep = "unused")
   
 # test/train split
